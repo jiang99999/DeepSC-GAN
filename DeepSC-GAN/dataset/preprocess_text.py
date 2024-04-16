@@ -151,7 +151,6 @@ def main(args):
 
     print(args.input_data_dir)
     sentences = []
-    #预处理
     print('Preprocess Raw Text')
     for fn in tqdm(os.listdir(args.input_data_dir)):
         if not fn.endswith('.txt'): continue
@@ -166,7 +165,6 @@ def main(args):
         a[set] += 1
     sentences = list(a.keys())
     print('Number of sentences: {}'.format(len(sentences)))
-    #建立vocab（词表）
     print('Build Vocab')
     token_to_idx = build_vocab(
         sentences, SPECIAL_TOKENS,
@@ -185,7 +183,7 @@ def main(args):
     results = []
     count_len = []
     for seq in tqdm(sentences):
-        words = tokenize(seq, punct_to_keep=[';', ','], punct_to_remove=['?', '.'])#tokenize令牌化，将句子中加入令牌<>。
+        words = tokenize(seq, punct_to_keep=[';', ','], punct_to_remove=['?', '.'])
         tokens = [token_to_idx[word] for word in words]
         count_len.append(len(tokens))
         results.append(tokens)

@@ -1,27 +1,6 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Nov 21 14:40:09 2019
 
-@author: HQ_Xie
-This file includes the module I need
-The encoder includes two sublayers
-1. multiheads attention
-2. Feed Forward
-
-The first sublayer includes:
-    1. Positional encoding
-    2. Scaled_dot_product_attention 
-    3. Multi-head attention
-
-The second sublayer includes:
-    1.Point wise feed forward network
-
-The decoder includes three sublayers
-"""
 import numpy as np
 import tensorflow as tf
-from models.encrypted import Encryptor,Decryptor
-
 
 def postional_encoder(position, d_model):
     '''
@@ -31,7 +10,6 @@ def postional_encoder(position, d_model):
     '''
     def get_angles(pos, i, d_model):
         angle_rates = pos / np.power(10000, ((2 * i) / np.float32(d_model)))
-        # angle_rates = 1 / np.power(10000, (2 * (i//2)) / np.float32(d_model))
         return  angle_rates
     angle_set = get_angles(np.arange(position)[:, None],
                            np.arange(d_model)[None, :],
@@ -44,56 +22,14 @@ def postional_encoder(position, d_model):
     
     return tf.cast(pos_encoding, dtype = tf.float32)
 
-"""
-def cycle_shift(self, e: torch.Tensor, forward=True):
-        b, l, d = e.size()
-
-        if forward:
-            temp = e[:, -1, :]
-            for i in range(l - 1):
-                e[:, i + 1, :] = e[:, i, :]
-            e[:, 0, :] = temp
-        else:
-            temp = e[:, 0, :]
-            for i in range(1, l):
-                e[:, i - 1, :] = e[:, i, :]
-            e[:, -1, :] = temp
-
-        return e
-
-    def forward(self, e: torch.Tensor):
-        # Initialization
-        h = e.clone()
-        b, l, d = h.size()
-        s = F.avg_pool2d(h, (h.shape[1], 1)).squeeze(1)
-        for _ in range(self.cycle_num):
-            # update the satellite nodes
-            h_last, h_next = self.cycle_shift(h.clone(), False), self.cycle_shift(h.clone(), True)
-            s_m = s.unsqueeze(1).expand_as(h)
-            c = torch.cat(
-                [h_last.unsqueeze(-2), h.unsqueeze(-2), h_next.unsqueeze(-2), e.unsqueeze(-2), s_m.unsqueeze(-2)],
-                dim=-2)
-            c = c.view(b * l, -1, d)
-            h = h.unsqueeze(-2).view(b * l, -1, d)
-            h = self.ln_satellite(F.relu(self.multi_att_satellite(h, c, c))).squeeze(-2).view(b, l, -1)
-            # update the relay node
-            s = s.unsqueeze(1)
-            m_c = torch.cat([s, h], dim=1)
-            s = self.ln_relay(F.relu(self.multi_att_relay(s, m_c, m_c))).squeeze(1)
-
-        return h, s
-"""
 
 class sublayer1(tf.keras.layers.Layer):
-    '''
-    This is multihead function, in order to 
-    '''
+
     def __init__(self, d_model, num_heads):
         super(sublayer1, self).__init__()
-        self.d_model = d_model#模型的维度128
-        self.num_heads = num_heads#多头注意力机制的个数 8       
-        self.depth = d_model//num_heads#单个头注意力机制的维度128/8=16
-        
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.depth = d_model//num_heads
         assert d_model % self.num_heads == 0
         
         self.wq = tf.keras.layers.Dense(self.d_model, use_bias=False)    
@@ -185,8 +121,7 @@ class sublayer1(tf.keras.layers.Layer):
         multi_outputs = self.dense(attention_output)
 
         return multi_outputs
-    ###########################################
-    ###########################################    
+
 #star-transformer    
 class StarTransformerEncoderLayer(tf.keras.layers.Layer):
     
@@ -199,9 +134,7 @@ class StarTransformerEncoderLayer(tf.keras.layers.Layer):
         self.multi_att_relay = sublayer1(d_model, num_heads)
         self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model)
         ######################################
-        #下面是ffn和norm层
-        self.sl2 = sublayer2(d_model, dff)#前向反馈层
-        
+        self.sl2 = sublayer2(d_model, dff)
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         
@@ -221,12 +154,11 @@ class StarTransformerEncoderLayer(tf.keras.layers.Layer):
     def call(self, e ,training , forward=True,mask=None):
         h = e
         b, l, d = h.shape
-        s = tf.reduce_mean(h, axis=1)#降维变成（batchsize,d_model）
+        s = tf.reduce_mean(h, axis=1)
         for i in range(self.cycle_num):
             # update the satellite nodes
             h_last, h_next = self.cycle_shift(h , False), self.cycle_shift(h , True)
-            s_m = tf.expand_dims(s,1)#在第一维上升维
-            # 将 s_m 扩展到与 h 相同的维度（batchsize,length,d_model）
+            s_m = tf.expand_dims(s,1)
             s_m = tf.broadcast_to(s_m, h.shape)
             c = tf.concat(
                 [tf.expand_dims(h_last,-2), tf.expand_dims(h,-2), tf.expand_dims(h_next,-2), tf.expand_dims(e,-2), tf.expand_dims(s_m,-2)],
@@ -264,10 +196,8 @@ class StarTransformerDecoderLayer(tf.keras.layers.Layer):
         self.multi_att_satellite = sublayer1(d_model, num_heads)
         self.multi_att_relay = sublayer1(d_model, num_heads)
         self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model)
-        
-        ######################################
-        #下面是ffn和norm层
-        self.sl2 = sublayer2(d_model, dff)#前向反馈层
+
+        self.sl2 = sublayer2(d_model, dff)
         
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -286,19 +216,17 @@ class StarTransformerDecoderLayer(tf.keras.layers.Layer):
         return x_shifted    
     
     def call(self, tar, e, look_ahead_mask , training ,forward=True, mask=None):
-        #自己加的，将目标输入和encoder输出做一次注意力
-        attn1 = self.multi_tar(tar, tar, tar, look_ahead_mask)#第一层注意力，attn1是输出结果（数组），attn_weights1是概率分布（用来算交叉熵）
+        attn1 = self.multi_tar(tar, tar, tar, look_ahead_mask)
         attn1 = self.dropout1(attn1, training = training)
         h2 = self.layernorm1(tar + attn1)
         
         h = e
         b, l, d = h.shape
-        s = tf.reduce_mean(h, axis=1)#降维变成（batchsize,d_model）
+        s = tf.reduce_mean(h, axis=1)
         for i in range(self.cycle_num):
             # update the satellite nodes
             h_last, h_next = self.cycle_shift(h , False), self.cycle_shift(h , True)
-            s_m = tf.expand_dims(s,1)#在第一维上升维
-            # 将 s_m 扩展到与 h 相同的维度（batchsize,length,d_model）
+            s_m = tf.expand_dims(s,1)
             s_m = tf.broadcast_to(s_m, h.shape)
             c = tf.concat(
                 [tf.expand_dims(h_last,-2), tf.expand_dims(h,-2), tf.expand_dims(h_next,-2), tf.expand_dims(e,-2), tf.expand_dims(s_m,-2)],
@@ -311,7 +239,7 @@ class StarTransformerDecoderLayer(tf.keras.layers.Layer):
             h = tf.reshape(h , [b , l, d])
             # update the relay node
             s =  tf.expand_dims(s,1)
-            m_c = tf.concat([s, h, h2], axis=1)#增加了目标输入带来的语义
+            m_c = tf.concat([s, h, h2], axis=1)
             s = tf.nn.relu(self.multi_att_satellite(s,m_c,m_c,None))
             s = tf.reshape(s , [b , d])
 
@@ -339,7 +267,7 @@ class STE(tf.keras.layers.Layer):
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.dropout1 = tf.keras.layers.Dropout(drop_pro)
         self.dropout2 = tf.keras.layers.Dropout(drop_pro)
-        self.sl2 = sublayer2(d_model, dff)#前向反馈层
+        self.sl2 = sublayer2(d_model, dff)
         
         
     def cycle_shift(self, x, forward=True):
@@ -355,12 +283,11 @@ class STE(tf.keras.layers.Layer):
     def call(self, e, training , forward=True,mask=None):
         h = e
         b, l, d = h.shape
-        s = tf.reduce_mean(h, axis=1)#降维变成（batchsize,d_model）
+        s = tf.reduce_mean(h, axis=1)
         for i in range(self.cycle_num):
             # update the satellite nodes
             h_last, h_next = self.cycle_shift(h , False), self.cycle_shift(h , True)
-            s_m = tf.expand_dims(s,1)#在第一维上升维
-            # 将 s_m 扩展到与 h 相同的维度（batchsize,length,d_model）
+            s_m = tf.expand_dims(s,1)
             s_m = tf.broadcast_to(s_m, h.shape)
             c = tf.concat(
                 [tf.expand_dims(h_last,-2), tf.expand_dims(h,-2), tf.expand_dims(h_next,-2), tf.expand_dims(e,-2), tf.expand_dims(s_m,-2)],
@@ -410,7 +337,7 @@ class STD(tf.keras.layers.Layer):
         self.dropout1 = tf.keras.layers.Dropout(drop_pro)
         self.dropout2 = tf.keras.layers.Dropout(drop_pro)
         self.dropout3 = tf.keras.layers.Dropout(drop_pro)
-        self.sl2 = sublayer2(d_model, dff)#前向反馈层
+        self.sl2 = sublayer2(d_model, dff)
         
     def cycle_shift(self, x, forward=True):
         if forward:
@@ -422,19 +349,17 @@ class STD(tf.keras.layers.Layer):
         return x_shifted    
     
     def call(self, tar, e, look_ahead_mask , training ,forward=True, mask=None):
-        #自己加的，将目标输入和encoder输出做一次注意力
-        attn1 = self.multi_tar(tar, tar, tar, look_ahead_mask)#第一层注意力，attn1是输出结果（数组），attn_weights1是概率分布（用来算交叉熵）
+        attn1 = self.multi_tar(tar, tar, tar, look_ahead_mask)
         attn1 = self.dropout1(attn1, training = training)
         h2 = self.layernorm1(tar + attn1)
         
         h = e
         b, l, d = h.shape
-        s = tf.reduce_mean(h, axis=1)#降维变成（batchsize,d_model）
+        s = tf.reduce_mean(h, axis=1)
         for i in range(self.cycle_num):
         # update the satellite nodes
             h_last, h_next = self.cycle_shift(h , False), self.cycle_shift(h , True)
-            s_m = tf.expand_dims(s,1)#在第一维上升维
-            # 将 s_m 扩展到与 h 相同的维度（batchsize,length,d_model）
+            s_m = tf.expand_dims(s,1)
             s_m = tf.broadcast_to(s_m, h.shape)
             c = tf.concat(
                 [tf.expand_dims(h_last,-2), tf.expand_dims(h,-2), tf.expand_dims(h_next,-2), tf.expand_dims(e,-2), tf.expand_dims(s_m,-2)],
@@ -448,7 +373,7 @@ class STD(tf.keras.layers.Layer):
 
             # update the relay node
             s =  tf.expand_dims(s,1)
-            m_c = tf.concat([s, h, h2], axis=1)#增加了目标输入带来的语义
+            m_c = tf.concat([s, h, h2], axis=1)
             s = tf.nn.relu(self.multi_att_relay(s,m_c,m_c,None))
             s = tf.reshape(s , [b , d])
         
@@ -459,11 +384,6 @@ class STD(tf.keras.layers.Layer):
         ffn_output = self.sl2(output1)
         ffn_output = self.dropout3(ffn_output, training = training)
         h = self.layernorm3(ffn_output + output1)
-        ########################
-        ########################
-        #s = self.dropout3(s)
-        #s = self.layernorm3(s)
-        ########################
         return h, s
     ###########################################
 class sublayer2(tf.keras.layers.Layer):
@@ -490,7 +410,7 @@ class EncoderLayer(tf.keras.layers.Layer):
         super(EncoderLayer, self).__init__()
         
         self.sl1 = sublayer1(d_model, num_heads)
-        self.sl2 = sublayer2(d_model, dff)#前向反馈层
+        self.sl2 = sublayer2(d_model, dff)
         
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -499,8 +419,7 @@ class EncoderLayer(tf.keras.layers.Layer):
         self.dropout2 = tf.keras.layers.Dropout(drop_pro)
         
     def call(self, x, training, mask):
-        # attention: the layernorm(x + sublayer(x)) should be replaced by 
-        # x + sublayer(LayerNorm(x)) 
+
         attn_output = self.sl1(x, x, x, mask) 
         attn_output = self.dropout1(attn_output, training = training)
         output1 = self.layernorm1(x + attn_output)  # (batch_size, input_seq_len, d_model)
@@ -535,11 +454,11 @@ class DecoderLayer(tf.keras.layers.Layer):
         self.dropout3 = tf.keras.layers.Dropout(drop_pro)
         
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
-        attn1 = self.sl11(x, x, x, look_ahead_mask)#第一层注意力，attn1是输出结果（数组），attn_weights1是概率分布（用来算交叉熵）
+        attn1 = self.sl11(x, x, x, look_ahead_mask)
         attn1 = self.dropout1(attn1, training = training)
         output1 = self.layernorm1(x + attn1)
         
-        attn2 = self.sl12( output1,enc_output, enc_output, padding_mask)#第二层注意力（两moemory+decoder输入），attn2是输出结果，attn_weights2是概率分布
+        attn2 = self.sl12( output1,enc_output, enc_output, padding_mask)
         attn2 = self.dropout2(attn2, training = training)
         output2 = self.layernorm2(attn2 + output1)
         
@@ -563,13 +482,11 @@ class Encoder(tf.keras.Model):
         self.dff = dff
         self.num_layers = num_layers
         self.target_vocab_size = input_vocab_size
-        self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model) #嵌入函数tf.keras.layers.Embedding（input，dim），input是词汇数，dim是转换的维度，输入（batch_size,length）->(batch_size,length,dim)
-        # note: the embedding can be used by BERT and use look_up function
-        
+        self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model)
         
         self.pos_encoding = postional_encoder(maximum_position_encoding, self.d_model)
         
-        self.encoder = [EncoderLayer(d_model, num_heads, dff, dropout_pro) for _ in range(num_layers)]#循环8次，生成由8个EncoderLayer组成的列表
+        self.encoder = [EncoderLayer(d_model, num_heads, dff, dropout_pro) for _ in range(num_layers)]
     
         self.dropout = tf.keras.layers.Dropout(dropout_pro)
     
@@ -609,15 +526,14 @@ class Decoder(tf.keras.Model):
         self.embedding = tf.keras.layers.Embedding(target_vocab_size, d_model)
         
         self.pos_encoding = postional_encoder(maximum_position_encoding, d_model)
-        
-        #调用DecoderLayer
+
         self.dec_layers = [DecoderLayer(d_model, num_heads, dff, dropout_pro)
-                       for _ in range(num_layers)]#同encoder
+                       for _ in range(num_layers)]
         
         self.dropout = tf.keras.layers.Dropout(dropout_pro)
         
         # prediction layer
-        self.final_layer = tf.keras.layers.Dense(target_vocab_size)#最后一层22234
+        self.final_layer = tf.keras.layers.Dense(target_vocab_size)
     
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
         seq_len = tf.shape(x)[1]
@@ -630,13 +546,9 @@ class Decoder(tf.keras.Model):
         x = self.dropout(x, training=training)
         
         for i in range(self.num_layers):
-            x= self.dec_layers[i](x, enc_output, training,
-                                             look_ahead_mask, padding_mask)#x是输出结果(64,30,128)，block1和block2都是概率分布
-      
-        
-        x = self.final_layer(x)#（batch_size,length,vocab_size=22234）
-        
-        
+            x= self.dec_layers[i](x, enc_output, training,look_ahead_mask, padding_mask)
+
+        x = self.final_layer(x)
         return x
 
 class SEncoder(tf.keras.Model):
@@ -653,14 +565,9 @@ class SEncoder(tf.keras.Model):
         self.dff = dff
         self.num_layers = num_layers
         self.target_vocab_size = input_vocab_size
-        self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model) #嵌入函数tf.keras.layers.Embedding（input，dim），input是词汇数，dim是转换的维度，输入（batch_size,length）->(batch_size,length,dim)
-        # note: the embedding can be used by BERT and use look_up function
-        
-        
+        self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model)
         self.pos_encoding = postional_encoder(maximum_position_encoding, self.d_model)
-        
-        self.encoder = [StarTransformerEncoderLayer(cycle_num, d_model, num_heads,input_vocab_size,dff) for _ in range(num_layers)]#循环8次，生成由8个EncoderLayer组成的列表
-    
+        self.encoder = [StarTransformerEncoderLayer(cycle_num, d_model, num_heads,input_vocab_size,dff) for _ in range(num_layers)]
         self.dropout = tf.keras.layers.Dropout(dropout_pro)
     
     def call(self, x, training, mask):
@@ -678,7 +585,7 @@ class SEncoder(tf.keras.Model):
         x = self.dropout(x, training = training)
         # Encoder
         for i in range(self.num_layers):
-            x,_ = self.encoder[i](x, training, True, mask)#经过8次encoderlayer
+            x,_ = self.encoder[i](x, training, True, mask)
         
         return x
 
@@ -701,12 +608,12 @@ class SDecoder(tf.keras.Model):
         
         #调用DecoderLayer
         self.dec_layers = [StarTransformerDecoderLayer(cycle_num, d_model, num_heads,target_vocab_size,dff)
-                       for _ in range(num_layers)]#同encoder
+                       for _ in range(num_layers)]
         
         self.dropout = tf.keras.layers.Dropout(dropout_pro)
         
         # prediction layer
-        self.final_layer = tf.keras.layers.Dense(target_vocab_size)#最后一层22234
+        self.final_layer = tf.keras.layers.Dense(target_vocab_size)
     
     def call(self, tar, x, look_ahead_mask, training, mask):
 
@@ -720,15 +627,11 @@ class SDecoder(tf.keras.Model):
         tar = self.dropout(tar, training=training)
         
         for i in range(self.num_layers):
-            x,_ = self.dec_layers[i](tar , x, look_ahead_mask, training, True,mask)#x是输出结果(64,30,128)，block1和block2都是概率分布
-      
-        
-        x = self.final_layer(x)#（batch_size,length,vocab_size=22234）
-        
-        
+            x,_ = self.dec_layers[i](tar , x, look_ahead_mask, training, True,mask)
+        x = self.final_layer(x)
+
         return x
-    
-#不加FFN的star-transformer    
+
 class SE(tf.keras.Model):
     '''
     1. Input Embedding 
@@ -743,9 +646,7 @@ class SE(tf.keras.Model):
         self.dff = dff
         self.num_layers = num_layers
         self.target_vocab_size = input_vocab_size
-        self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model) #嵌入函数tf.keras.layers.Embedding（input，dim），input是词汇数，dim是转换的维度，输入（batch_size,length）->(batch_size,length,dim)
-        # note: the embedding can be used by BERT and use look_up function
-        
+        self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model)
         
         self.pos_encoding = postional_encoder(maximum_position_encoding, self.d_model)
         
@@ -769,8 +670,7 @@ class SE(tf.keras.Model):
         s = tf.reduce_mean(x, axis=1)
         # Encoder
         
-        x,_ = self.encoder(x, training, True, mask)#经过8次encoderlayer
-        
+        x,_ = self.encoder(x, training, True, mask)
         return x
     
 
@@ -790,14 +690,13 @@ class SD(tf.keras.Model):
         self.embedding = tf.keras.layers.Embedding(target_vocab_size, d_model)
         
         self.pos_encoding = postional_encoder(maximum_position_encoding, d_model)
-        
-        #调用DecoderLayer
-        self.dec_layers = STD(cycle_num, d_model, num_heads,target_vocab_size,dff)#同encoder
+
+        self.dec_layers = STD(cycle_num, d_model, num_heads,target_vocab_size,dff)
         
         self.dropout = tf.keras.layers.Dropout(dropout_pro)
         
         # prediction layer
-        self.final_layer = tf.keras.layers.Dense(target_vocab_size)#最后一层22234
+        self.final_layer = tf.keras.layers.Dense(target_vocab_size)
     
     def call(self, tar, x, training, look_ahead_mask,  mask):
 
@@ -810,10 +709,10 @@ class SD(tf.keras.Model):
     
         tar = self.dropout(tar, training=training)
         s = tf.reduce_mean(x, axis=1)
-        x,_ = self.dec_layers(tar , x, look_ahead_mask, training, True,mask)#x是输出结果(64,30,128)，block1和block2都是概率分布
+        x,_ = self.dec_layers(tar , x, look_ahead_mask, training, True,mask)
       
         
-        x = self.final_layer(x)#（batch_size,length,vocab_size=22234）
+        x = self.final_layer(x)
         
         
         return x
@@ -836,13 +735,12 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
         return tf.math.rsqrt(self.d_model)*tf.math.minimum(arg1, arg2)
 
 
-loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')#交叉熵是以e为底算的，即ln
+loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
 def loss_function(real, pred):
     '''
-    This is loss function, we use cross（交叉熵） 
+    This is loss function, we use cross
     '''
-    mask = tf.math.logical_not(tf.math.equal(real, 0)) #tf.math.logical_not：x和y两个张量在相应位置上做非（!）操作，tf.math.equal代表零是Ture
-    #非零是False，所以mask将句子的填充部分作为False，有词的部分为True
+    mask = tf.math.logical_not(tf.math.equal(real, 0))
     mask_1 = tf.math.logical_not(tf.math.equal(real, 4))
     mask_2 = tf.math.logical_not(tf.math.equal(real, 5))
     loss_ = loss_object(real, pred)
@@ -850,14 +748,14 @@ def loss_function(real, pred):
     mask = tf.cast(mask, dtype = tf.float32) #use for padding influence
     mask_1 = tf.cast(mask, dtype = tf.float32) #use for padding influence
     mask_2 = tf.cast(mask, dtype = tf.float32) #use for padding influence
-    loss_ *= mask#除去pad部分的影响
-    loss_ *= mask_1#除去空格的影响
-    loss_ *= mask_2#除去感叹号的影响
+    loss_ *= mask
+    loss_ *= mask_1
+    loss_ *= mask_2
     
     return tf.reduce_mean(loss_)
 
 def create_padding_mask(seq):
-    seq = tf.cast(tf.math.equal(seq, 0), tf.float32)#首先将seq非零位置0，零位置1，之后用cast转化成float32类型
+    seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
     return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, 1, seq_len)
 
 def create_look_ahead_mask(size):
@@ -865,7 +763,7 @@ def create_look_ahead_mask(size):
     #[0, 0, 1, 1, ..., 1]
     #...
     #[0, 0, 0, 0, ..,  1]
-    mask = 1 - tf.linalg.band_part(tf.ones([size, size]), -1, 0)#tf.linalg.band_part（input，m，n），m代表下三角副对角线取几个，n代表上三角副对角线取几个，m或n是负数时副对角线不变，mask就是上面这样的矩阵
+    mask = 1 - tf.linalg.band_part(tf.ones([size, size]), -1, 0)
     return mask  # (seq_len, seq_len)
 
 def create_masks(inp, tar):
