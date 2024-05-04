@@ -1,17 +1,4 @@
-# !usr/bin/env python
-# -*- coding:utf-8 _*-
-"""
-@Author: Huiqiang Xie
-@File: text_preprocess.py
-@Time: 2021/3/31 22:14
-"""
-# !/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Jan 30 16:44:08 2020
 
-@author: hx301
-"""
 import unicodedata
 import re
 from w3lib.html import remove_tags
