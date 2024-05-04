@@ -79,22 +79,6 @@ class Channels(tf.keras.Model):
 
         x_est = tf.concat([x_est_real, x_est_img], axis=-1)#（64，248，2）
         x_est = tf.reshape(x_est, (bs, sent_len, -1))#（64，31，16）
-
-        # method 1
-        noise_level = n_std * tf.ones((bs, sent_len, 1))
-        h_real = h_real * tf.ones((bs, sent_len, 1))
-        h_imag = h_imag * tf.ones((bs, sent_len, 1))
-        h = tf.concat((h_real, h_imag), axis=-1)
-        out1 = tf.concat((h, x_est), -1)   # [bs, sent_len, 2 + d_model]
-
-        # method 2
-        y_complex_real = tf.math.real(y_complex)
-        y_complex_img = tf.math.imag(y_complex)
-        y_complex_real = tf.expand_dims(y_complex_real, -1)
-        y_complex_img = tf.expand_dims(y_complex_img, -1)
-        y = tf.concat([y_complex_real, y_complex_img], axis=-1)
-        y = tf.reshape(y, (bs, sent_len, -1))
-        out2 = tf.concat((h, y), -1)  # [bs, sent_len, 2 + d_model]
         
         return x_est
 
