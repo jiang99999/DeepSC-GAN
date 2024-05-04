@@ -9,7 +9,7 @@ from bert4keras.tokenizers import Tokenizer
 
 class SeqtoText:
     def __init__(self, vocb_dictionary, end_idx):
-        self.reverse_word_map = dict(zip(vocb_dictionary.values(), vocb_dictionary.keys()))#返回的是vocal词典
+        self.reverse_word_map = dict(zip(vocb_dictionary.values(), vocb_dictionary.keys()))
         self.end_idx = end_idx
  
     def sequence_to_text(self, list_of_indices):
@@ -37,7 +37,7 @@ class BleuScore():
     def compute_score(self, real, predicted):
         score1 = []
         for (sent1, sent2) in zip(real, predicted):
-            sent1 = remove_tags(sent1).split()#remove_tags可以去除标签符号<>
+            sent1 = remove_tags(sent1).split()
             sent2 = remove_tags(sent2).split()
             score1.append(sentence_bleu([sent1], sent2, weights=(self.w1, self.w2, self.w3, self.w4)))
         return score1
